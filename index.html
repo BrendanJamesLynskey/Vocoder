@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channel Vocoder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0806;
+            --panel: #111010;
+            --panel-border: rgba(212,135,14,0.1);
+            --accent-1: #d4870e;
+            --accent-2: #b8621b;
+            --accent-3: #e8a849;
+            --accent-4: #c9955a;
+            --accent-5: #8b6914;
+            --text: #e8e0d4;
+            --text-dim: rgba(255,245,230,0.45);
+            --text-muted: rgba(255,245,230,0.25);
+            --glow-1: rgba(212,135,14,0.3);
+            --glow-2: rgba(184,98,27,0.2);
+            --meter-bg: rgba(212,135,14,0.06);
+            --meter-fill: #d4870e;
+            --meter-peak: #e8a849;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:'DM Sans',sans-serif;
+            background:var(--bg);
+            color:var(--text);
+            min-height:100vh;
+            overflow-x:hidden;
+            user-select:none;
+        }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-thumb { background:var(--accent-5); border-radius:2px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+
+        /* Header */
+        .header {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:10px 20px;
+            border-bottom:1px solid var(--panel-border);
+            background:var(--panel);
+        }
+        .header-left {
+            display:flex;
+            align-items:center;
+            gap:14px;
+        }
+        .logo {
+            font-size:1.3rem;
+            font-weight:700;
+            background:linear-gradient(135deg,var(--accent-3),var(--accent-1));
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-clip:text;
+        }
+        .logo-sub {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.72rem;
+            color:var(--text-muted);
+            letter-spacing:0.15em;
+            text-transform:uppercase;
+        }
+        .header-right {
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .hdr-btn {
+            background:rgba(212,135,14,0.08);
+            border:1px solid var(--panel-border);
+            color:var(--text);
+            padding:7px 14px;
+            border-radius:6px;
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.78rem;
+            cursor:pointer;
+            transition:all 0.2s;
+            letter-spacing:0.05em;
+        }
+        .hdr-btn:hover {
+            background:rgba(212,135,14,0.15);
+            border-color:var(--accent-1);
+        }
+        .hdr-btn.active, .hdr-btn.recording {
+            background:var(--accent-1);
+            color:#000;
+            border-color:var(--accent-1);
+        }
+        .hdr-btn.recording {
+            background:#c0392b;
+            border-color:#c0392b;
+            color:#fff;
+            animation:pulse-rec 1s infinite;
+        }
+        @keyframes pulse-rec {
+            0%,100% { opacity:1; }
+            50% { opacity:0.7; }
+        }
+
+        /* Main Layout */
+        .main {
+            display:grid;
+            grid-template-columns:200px 1fr 260px;
+            height:calc(100vh - 45px);
+        }
+
+        /* Left Panel - Presets */
+        .preset-panel {
+            background:var(--panel);
+            border-right:1px solid var(--panel-border);
+            overflow-y:auto;
+            padding:12px;
+        }
+        .section-title {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.72rem;
+            color:var(--accent-3);
+            text-transform:uppercase;
+            letter-spacing:0.15em;
+            margin-bottom:8px;
+            padding-bottom:4px;
+            border-bottom:1px solid rgba(212,135,14,0.08);
+        }
+        .preset-btn {
+            display:block;
+            width:100%;
+            text-align:left;
+            background:transparent;
+            border:1px solid transparent;
+            color:var(--text-dim);
+            padding:7px 10px;
+            border-radius:6px;
+            font-family:'DM Sans',sans-serif;
+            font-size:0.88rem;
+            cursor:pointer;
+            transition:all 0.15s;
+            margin-bottom:2px;
+        }
+        .preset-btn:hover {
+            background:rgba(212,135,14,0.06);
+            color:var(--text);
+        }
+        .preset-btn.active {
+            background:rgba(212,135,14,0.12);
+            border-color:var(--accent-1);
+            color:var(--accent-3);
+        }
+        .preset-desc {
+            font-size:0.7rem;
+            color:var(--text-muted);
+            margin-top:2px;
+        }
+
+        /* Centre Panel */
+        .centre {
+            display:flex;
+            flex-direction:column;
+            overflow:hidden;
+        }
+
+        /* Band Meters */
+        .meters-section {
+            background:#080604;
+            border-bottom:1px solid var(--panel-border);
+            padding:10px 14px 8px;
+            position:relative;
+        }
+        .meters-label {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.68rem;
+            color:var(--text-muted);
+            letter-spacing:0.1em;
+            text-transform:uppercase;
+            margin-bottom:6px;
+        }
+        .meters-container {
+            display:flex;
+            align-items:flex-end;
+            gap:2px;
+            height:100px;
+        }
+        .meter-bar {
+            flex:1;
+            height:100%;
+            display:flex;
+            flex-direction:column;
+            justify-content:flex-end;
+            position:relative;
+            background:var(--meter-bg);
+            border-radius:2px 2px 0 0;
+            min-width:4px;
+        }
+        .meter-fill {
+            width:100%;
+            border-radius:2px 2px 0 0;
+            transition:height 0.04s linear;
+            position:absolute;
+            bottom:0;
+        }
+        .meter-freq {
+            position:absolute;
+            bottom:-14px;
+            left:50%;
+            transform:translateX(-50%);
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.5rem;
+            color:var(--text-muted);
+            white-space:nowrap;
+        }
+
+        /* Visualisation Canvases */
+        .vis-row {
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:1px;
+            background:var(--panel-border);
+            flex:1;
+            min-height:0;
+        }
+        .vis-pane {
+            background:#080604;
+            position:relative;
+            overflow:hidden;
+        }
+        .vis-pane canvas {
+            width:100%;
+            height:100%;
+            display:block;
+        }
+        .vis-pane-label {
+            position:absolute;
+            top:8px;
+            left:10px;
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.65rem;
+            color:var(--text-muted);
+            letter-spacing:0.1em;
+            text-transform:uppercase;
+            pointer-events:none;
+        }
+
+        /* Right Panel - Controls */
+        .controls-panel {
+            background:var(--panel);
+            border-left:1px solid var(--panel-border);
+            overflow-y:auto;
+            padding:12px;
+        }
+        .ctrl-group {
+            margin-bottom:14px;
+        }
+        .ctrl-row {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            margin-bottom:6px;
+        }
+        .ctrl-label {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.7rem;
+            color:var(--text-dim);
+            letter-spacing:0.05em;
+        }
+        .ctrl-value {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.7rem;
+            color:var(--accent-3);
+            min-width:48px;
+            text-align:right;
+        }
+        input[type="range"] {
+            -webkit-appearance:none;
+            width:100%;
+            height:4px;
+            background:rgba(212,135,14,0.12);
+            border-radius:2px;
+            outline:none;
+            margin:4px 0 8px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance:none;
+            width:14px;
+            height:14px;
+            background:var(--accent-1);
+            border-radius:50%;
+            cursor:pointer;
+            box-shadow:0 0 6px var(--glow-1);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width:14px;
+            height:14px;
+            background:var(--accent-1);
+            border:none;
+            border-radius:50%;
+            cursor:pointer;
+        }
+
+        /* Button Groups */
+        .btn-group {
+            display:flex;
+            gap:4px;
+            flex-wrap:wrap;
+            margin:6px 0 10px;
+        }
+        .btn-group .btn {
+            background:rgba(212,135,14,0.06);
+            border:1px solid var(--panel-border);
+            color:var(--text-dim);
+            padding:5px 10px;
+            border-radius:5px;
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.68rem;
+            cursor:pointer;
+            transition:all 0.15s;
+            letter-spacing:0.03em;
+        }
+        .btn-group .btn:hover {
+            background:rgba(212,135,14,0.12);
+            color:var(--text);
+        }
+        .btn-group .btn.active {
+            background:rgba(212,135,14,0.2);
+            border-color:var(--accent-1);
+            color:var(--accent-3);
+        }
+
+        /* Source buttons */
+        .source-btn {
+            display:block;
+            width:100%;
+            text-align:center;
+            background:rgba(212,135,14,0.06);
+            border:1px solid var(--panel-border);
+            color:var(--text-dim);
+            padding:8px;
+            border-radius:6px;
+            font-family:'DM Sans',sans-serif;
+            font-size:0.82rem;
+            cursor:pointer;
+            transition:all 0.15s;
+            margin-bottom:4px;
+        }
+        .source-btn:hover {
+            background:rgba(212,135,14,0.12);
+            color:var(--text);
+        }
+        .source-btn.active {
+            background:rgba(212,135,14,0.18);
+            border-color:var(--accent-1);
+            color:var(--accent-3);
+        }
+
+        .file-label {
+            display:block;
+            width:100%;
+            text-align:center;
+            background:rgba(212,135,14,0.04);
+            border:1px dashed var(--panel-border);
+            color:var(--text-muted);
+            padding:8px;
+            border-radius:6px;
+            font-size:0.75rem;
+            cursor:pointer;
+            transition:all 0.15s;
+            margin-top:4px;
+        }
+        .file-label:hover {
+            border-color:var(--accent-1);
+            color:var(--text-dim);
+        }
+        .file-label input { display:none; }
+
+        .divider {
+            height:1px;
+            background:var(--panel-border);
+            margin:12px 0;
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width:8px;
+            height:8px;
+            border-radius:50%;
+            background:#444;
+            display:inline-block;
+            margin-right:6px;
+        }
+        .status-dot.active {
+            background:#2ecc71;
+            box-shadow:0 0 6px rgba(46,204,113,0.5);
+        }
+        .status-text {
+            font-family:'JetBrains Mono',monospace;
+            font-size:0.7rem;
+            color:var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-left">
+        <div>
+            <div class="logo">Channel Vocoder</div>
+            <div class="logo-sub">16-band analysis / synthesis</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Idle</span>
+        <button class="hdr-btn" id="btnStart">Start</button>
+        <button class="hdr-btn" id="btnRecord">Record</button>
+        <button class="hdr-btn" id="btnPlayback">Play Rec</button>
+    </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+    <!-- Left: Presets -->
+    <div class="preset-panel">
+        <div class="section-title">Presets</div>
+        <div id="presetList"></div>
+
+        <div style="margin-top:18px">
+            <div class="section-title">Modulator Source</div>
+            <button class="source-btn active" id="srcMic" onclick="setModulatorSource('mic')">Microphone</button>
+            <label class="file-label" id="modFileLabel">
+                Upload Audio File
+                <input type="file" accept="audio/*" id="modFileInput">
+            </label>
+            <div id="modFileName" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;text-align:center;"></div>
+        </div>
+
+        <div style="margin-top:14px">
+            <div class="section-title">Carrier Source</div>
+            <div class="btn-group" id="carrierBtns">
+                <button class="btn active" data-carrier="sawtooth">Saw</button>
+                <button class="btn" data-carrier="square">Square</button>
+                <button class="btn" data-carrier="pulse">Pulse</button>
+                <button class="btn" data-carrier="whitenoise">White</button>
+                <button class="btn" data-carrier="pinknoise">Pink</button>
+                <button class="btn" data-carrier="chord">Chord</button>
+            </div>
+            <label class="file-label" id="carFileLabel">
+                Upload Carrier Audio
+                <input type="file" accept="audio/*" id="carFileInput">
+            </label>
+            <div id="carFileName" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;text-align:center;"></div>
+        </div>
+    </div>
+
+    <!-- Centre: Meters + Vis -->
+    <div class="centre">
+        <div class="meters-section">
+            <div class="meters-label">Band Envelope Levels</div>
+            <div class="meters-container" id="metersContainer"></div>
+            <div style="height:16px;"></div>
+        </div>
+        <div class="vis-row">
+            <div class="vis-pane">
+                <div class="vis-pane-label">Modulator Spectrum</div>
+                <canvas id="canvasModulator"></canvas>
+            </div>
+            <div class="vis-pane">
+                <div class="vis-pane-label">Output Spectrum</div>
+                <canvas id="canvasOutput"></canvas>
+            </div>
+            <div class="vis-pane" style="grid-column:1/-1;">
+                <div class="vis-pane-label">Output Waveform</div>
+                <canvas id="canvasWaveform"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Controls -->
+    <div class="controls-panel">
+        <div class="ctrl-group">
+            <div class="section-title">Filter Bank</div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Bands</span>
+                <span class="ctrl-value" id="valBands">16</span>
+            </div>
+            <div class="btn-group" id="bandBtns">
+                <button class="btn" data-bands="8">8</button>
+                <button class="btn active" data-bands="16">16</button>
+                <button class="btn" data-bands="24">24</button>
+                <button class="btn" data-bands="32">32</button>
+            </div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Spacing</span>
+                <span class="ctrl-value" id="valSpacing">Log</span>
+            </div>
+            <div class="btn-group" id="spacingBtns">
+                <button class="btn" data-spacing="linear">Linear</button>
+                <button class="btn active" data-spacing="log">Log</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ctrl-group">
+            <div class="section-title">Envelope Follower</div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Attack</span>
+                <span class="ctrl-value" id="valAttack">10 ms</span>
+            </div>
+            <input type="range" id="sliderAttack" min="1" max="100" value="10" step="1">
+            <div class="ctrl-row">
+                <span class="ctrl-label">Release</span>
+                <span class="ctrl-value" id="valRelease">80 ms</span>
+            </div>
+            <input type="range" id="sliderRelease" min="10" max="500" value="80" step="1">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ctrl-group">
+            <div class="section-title">Carrier</div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Frequency</span>
+                <span class="ctrl-value" id="valFreq">110 Hz</span>
+            </div>
+            <input type="range" id="sliderFreq" min="40" max="440" value="110" step="1">
+            <div class="ctrl-row">
+                <span class="ctrl-label">Pulse Width</span>
+                <span class="ctrl-value" id="valPW">50%</span>
+            </div>
+            <input type="range" id="sliderPW" min="5" max="95" value="50" step="1">
+            <div class="ctrl-row">
+                <span class="ctrl-label">Chord Voicing</span>
+                <span class="ctrl-value" id="valChord">Maj</span>
+            </div>
+            <div class="btn-group" id="chordBtns">
+                <button class="btn active" data-chord="major">Maj</button>
+                <button class="btn" data-chord="minor">Min</button>
+                <button class="btn" data-chord="7th">7th</button>
+                <button class="btn" data-chord="sus4">Sus4</button>
+                <button class="btn" data-chord="5th">5th</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ctrl-group">
+            <div class="section-title">Output</div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Dry / Wet</span>
+                <span class="ctrl-value" id="valMix">100%</span>
+            </div>
+            <input type="range" id="sliderMix" min="0" max="100" value="100" step="1">
+            <div class="ctrl-row">
+                <span class="ctrl-label">Output Gain</span>
+                <span class="ctrl-value" id="valGain">0 dB</span>
+            </div>
+            <input type="range" id="sliderGain" min="-24" max="12" value="0" step="0.5">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ctrl-group">
+            <div class="section-title">Filter Q</div>
+            <div class="ctrl-row">
+                <span class="ctrl-label">Q Factor</span>
+                <span class="ctrl-value" id="valQ">4.0</span>
+            </div>
+            <input type="range" id="sliderQ" min="1" max="20" value="4" step="0.5">
+        </div>
+    </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+const state = {
+    running: false,
+    recording: false,
+    numBands: 16,
+    spacing: 'log',
+    attackMs: 10,
+    releaseMs: 80,
+    carrierType: 'sawtooth',
+    carrierFreq: 110,
+    pulseWidth: 0.5,
+    chordVoicing: 'major',
+    mix: 1.0,
+    gain: 0,
+    qFactor: 4.0,
+    modulatorSource: 'mic',
+    freqMin: 80,
+    freqMax: 8000,
+};
+
+let audioCtx = null;
+let micStream = null;
+let modulatorNode = null;       // source node for modulator
+let carrierNode = null;         // source node(s) for carrier
+let carrierGainNode = null;
+let analysisBands = [];         // {filter, follower, vca, carrierFilter}
+let modulatorAnalyser = null;
+let outputAnalyser = null;
+let waveformAnalyser = null;
+let masterGain = null;
+let dryGain = null;
+let wetGain = null;
+let vocOutGain = null;
+let modulatorGain = null;
+
+// For noise carrier
+let noiseNode = null;
+// For chord carrier
+let chordOscs = [];
+// For pulse wave
+let pulseProcessor = null;
+
+// External audio buffers
+let modAudioBuffer = null;
+let modSourceNode = null;
+let carAudioBuffer = null;
+let carSourceNode = null;
+
+// Recording
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordedBlob = null;
+let playbackAudio = null;
+
+// Envelope followers (ScriptProcessor / AudioWorklet fallback)
+let envelopeProcessor = null;
+let envelopeLevels = new Float32Array(32);
+
+// Animation
+let animFrame = null;
+
+// Chord intervals (semitones from root)
+const CHORD_MAP = {
+    major: [0, 4, 7, 12],
+    minor: [0, 3, 7, 12],
+    '7th': [0, 4, 7, 10],
+    sus4: [0, 5, 7, 12],
+    '5th': [0, 7, 12, 19],
+};
+
+// ===================== PRESETS =====================
+const PRESETS = [
+    {
+        name: 'Robot Voice',
+        desc: 'Classic vocoder — sawtooth carrier, fast envelope',
+        carrier: 'sawtooth', bands: 16, spacing: 'log',
+        attack: 5, release: 40, freq: 110, pw: 50,
+        chord: 'major', mix: 100, gain: 0, q: 5
+    },
+    {
+        name: 'Whisper',
+        desc: 'Noise carrier for breathy effect',
+        carrier: 'whitenoise', bands: 24, spacing: 'log',
+        attack: 3, release: 30, freq: 110, pw: 50,
+        chord: 'major', mix: 100, gain: 3, q: 3
+    },
+    {
+        name: 'Choir',
+        desc: 'Chord carrier, slow envelopes — lush pad',
+        carrier: 'chord', bands: 16, spacing: 'log',
+        attack: 40, release: 200, freq: 110, pw: 50,
+        chord: 'major', mix: 100, gain: 0, q: 4
+    },
+    {
+        name: 'Talk Box',
+        desc: 'Square wave carrier — nasal and bold',
+        carrier: 'square', bands: 16, spacing: 'log',
+        attack: 8, release: 60, freq: 110, pw: 50,
+        chord: 'major', mix: 100, gain: 0, q: 6
+    },
+    {
+        name: 'Ambient Pad',
+        desc: 'Slow envelopes, wide bands — ethereal',
+        carrier: 'chord', bands: 8, spacing: 'log',
+        attack: 80, release: 400, freq: 80, pw: 50,
+        chord: 'minor', mix: 85, gain: 0, q: 2
+    },
+    {
+        name: 'Crisp Digital',
+        desc: 'High band count, tight envelopes',
+        carrier: 'sawtooth', bands: 32, spacing: 'log',
+        attack: 2, release: 20, freq: 110, pw: 50,
+        chord: 'major', mix: 100, gain: 0, q: 8
+    },
+    {
+        name: 'Pink Haze',
+        desc: 'Pink noise carrier — warm whisper',
+        carrier: 'pinknoise', bands: 16, spacing: 'log',
+        attack: 15, release: 120, freq: 110, pw: 50,
+        chord: 'major', mix: 90, gain: 2, q: 3
+    },
+    {
+        name: 'Pulse Width',
+        desc: 'Pulse wave with narrow width',
+        carrier: 'pulse', bands: 16, spacing: 'log',
+        attack: 8, release: 60, freq: 130, pw: 20,
+        chord: 'major', mix: 100, gain: 0, q: 5
+    },
+];
+
+// ===================== INIT UI =====================
+function initPresets() {
+    const list = document.getElementById('presetList');
+    PRESETS.forEach((p, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.innerHTML = `${p.name}<div class="preset-desc">${p.desc}</div>`;
+        btn.onclick = () => applyPreset(i);
+        list.appendChild(btn);
+    });
+}
+
+function applyPreset(idx) {
+    const p = PRESETS[idx];
+    // Update state
+    state.carrierType = p.carrier;
+    state.numBands = p.bands;
+    state.spacing = p.spacing;
+    state.attackMs = p.attack;
+    state.releaseMs = p.release;
+    state.carrierFreq = p.freq;
+    state.pulseWidth = p.pw / 100;
+    state.chordVoicing = p.chord;
+    state.mix = p.mix / 100;
+    state.gain = p.gain;
+    state.qFactor = p.q;
+
+    // Update UI
+    document.getElementById('sliderAttack').value = p.attack;
+    document.getElementById('valAttack').textContent = p.attack + ' ms';
+    document.getElementById('sliderRelease').value = p.release;
+    document.getElementById('valRelease').textContent = p.release + ' ms';
+    document.getElementById('sliderFreq').value = p.freq;
+    document.getElementById('valFreq').textContent = p.freq + ' Hz';
+    document.getElementById('sliderPW').value = p.pw;
+    document.getElementById('valPW').textContent = p.pw + '%';
+    document.getElementById('sliderMix').value = p.mix;
+    document.getElementById('valMix').textContent = p.mix + '%';
+    document.getElementById('sliderGain').value = p.gain;
+    document.getElementById('valGain').textContent = p.gain + ' dB';
+    document.getElementById('sliderQ').value = p.q;
+    document.getElementById('valQ').textContent = p.q.toFixed(1);
+    document.getElementById('valBands').textContent = p.bands;
+    document.getElementById('valSpacing').textContent = p.spacing === 'log' ? 'Log' : 'Linear';
+
+    // Update button states
+    setActiveBtn('bandBtns', 'bands', String(p.bands));
+    setActiveBtn('spacingBtns', 'spacing', p.spacing);
+    setActiveBtn('carrierBtns', 'carrier', p.carrier);
+    setActiveBtn('chordBtns', 'chord', p.chord);
+
+    // Highlight preset
+    document.querySelectorAll('.preset-btn').forEach((b, i2) => {
+        b.classList.toggle('active', i2 === idx);
+    });
+
+    // Rebuild if running
+    if (state.running) {
+        rebuildVocoder();
+    }
+}
+
+function setActiveBtn(containerId, dataAttr, value) {
+    document.querySelectorAll(`#${containerId} .btn`).forEach(b => {
+        b.classList.toggle('active', b.dataset[dataAttr] === value);
+    });
+}
+
+// ===================== BAND METERS UI =====================
+function buildMeters() {
+    const container = document.getElementById('metersContainer');
+    container.innerHTML = '';
+    const freqs = computeBandFreqs(state.numBands);
+    for (let i = 0; i < state.numBands; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'meter-bar';
+        const fill = document.createElement('div');
+        fill.className = 'meter-fill';
+        fill.style.height = '0%';
+        // Color gradient from warm to bright
+        const hue = 25 + (i / state.numBands) * 15;
+        const sat = 80 + (i / state.numBands) * 20;
+        fill.style.background = `linear-gradient(to top, hsl(${hue},${sat}%,35%), hsl(${hue},${sat}%,55%))`;
+        bar.appendChild(fill);
+
+        // Frequency label (every few)
+        if (state.numBands <= 16 || i % 2 === 0) {
+            const label = document.createElement('div');
+            label.className = 'meter-freq';
+            const f = freqs[i];
+            label.textContent = f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f);
+            bar.appendChild(label);
+        }
+        container.appendChild(bar);
+    }
+    // Update subtitle
+    document.querySelector('.logo-sub').textContent = `${state.numBands}-band analysis / synthesis`;
+}
+
+// ===================== FREQUENCY COMPUTATION =====================
+function computeBandFreqs(n) {
+    const freqs = [];
+    if (state.spacing === 'log') {
+        const logMin = Math.log(state.freqMin);
+        const logMax = Math.log(state.freqMax);
+        for (let i = 0; i < n; i++) {
+            const t = (i + 0.5) / n;
+            freqs.push(Math.exp(logMin + t * (logMax - logMin)));
+        }
+    } else {
+        const step = (state.freqMax - state.freqMin) / n;
+        for (let i = 0; i < n; i++) {
+            freqs.push(state.freqMin + (i + 0.5) * step);
+        }
+    }
+    return freqs;
+}
+
+function computeBandwidths(freqs) {
+    const bws = [];
+    for (let i = 0; i < freqs.length; i++) {
+        let lo, hi;
+        if (i === 0) {
+            lo = state.freqMin;
+        } else {
+            lo = Math.sqrt(freqs[i] * freqs[i - 1]);
+        }
+        if (i === freqs.length - 1) {
+            hi = state.freqMax;
+        } else {
+            hi = Math.sqrt(freqs[i] * freqs[i + 1]);
+        }
+        bws.push(hi - lo);
+    }
+    return bws;
+}
+
+// ===================== AUDIO ENGINE =====================
+async function startAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Master output chain
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = Math.pow(10, state.gain / 20);
+
+    // Dry/wet mixing
+    dryGain = audioCtx.createGain();
+    dryGain.gain.value = 1 - state.mix;
+    wetGain = audioCtx.createGain();
+    wetGain.gain.value = state.mix;
+    vocOutGain = audioCtx.createGain();
+    vocOutGain.gain.value = 1;
+
+    // Analysers
+    modulatorAnalyser = audioCtx.createAnalyser();
+    modulatorAnalyser.fftSize = 2048;
+    outputAnalyser = audioCtx.createAnalyser();
+    outputAnalyser.fftSize = 2048;
+    waveformAnalyser = audioCtx.createAnalyser();
+    waveformAnalyser.fftSize = 2048;
+
+    // Wiring: vocOutGain -> wetGain -> masterGain -> output + analysers
+    vocOutGain.connect(wetGain);
+    wetGain.connect(masterGain);
+    dryGain.connect(masterGain);
+    masterGain.connect(outputAnalyser);
+    masterGain.connect(waveformAnalyser);
+    masterGain.connect(audioCtx.destination);
+
+    // Get modulator
+    await setupModulator();
+
+    // Build vocoder
+    buildVocoder();
+
+    state.running = true;
+    document.getElementById('statusDot').classList.add('active');
+    document.getElementById('statusText').textContent = 'Running';
+    document.getElementById('btnStart').classList.add('active');
+    document.getElementById('btnStart').textContent = 'Stop';
+
+    startAnimation();
+}
+
+function stopAudio() {
+    if (!state.running) return;
+    state.running = false;
+
+    cancelAnimationFrame(animFrame);
+
+    // Stop recording if active
+    if (state.recording) stopRecording();
+
+    // Tear down
+    teardownVocoder();
+    teardownModulator();
+    teardownCarrier();
+
+    if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+    }
+
+    document.getElementById('statusDot').classList.remove('active');
+    document.getElementById('statusText').textContent = 'Idle';
+    document.getElementById('btnStart').classList.remove('active');
+    document.getElementById('btnStart').textContent = 'Start';
+
+    // Clear meters
+    const fills = document.querySelectorAll('.meter-fill');
+    fills.forEach(f => f.style.height = '0%');
+}
+
+async function setupModulator() {
+    if (state.modulatorSource === 'mic') {
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            modulatorNode = audioCtx.createMediaStreamSource(micStream);
+        } catch (e) {
+            console.error('Mic access denied:', e);
+            alert('Microphone access is required for the vocoder. Please allow microphone access and try again.');
+            return;
+        }
+    } else if (state.modulatorSource === 'file' && modAudioBuffer) {
+        modSourceNode = audioCtx.createBufferSource();
+        modSourceNode.buffer = modAudioBuffer;
+        modSourceNode.loop = true;
+        modulatorNode = modSourceNode;
+        modSourceNode.start();
+    }
+
+    if (modulatorNode) {
+        // Modulator -> dry path
+        modulatorGain = audioCtx.createGain();
+        modulatorGain.gain.value = 1;
+        modulatorNode.connect(modulatorGain);
+        modulatorGain.connect(modulatorAnalyser);
+        modulatorGain.connect(dryGain);
+    }
+}
+
+function teardownModulator() {
+    if (modSourceNode) {
+        try { modSourceNode.stop(); } catch(e) {}
+        modSourceNode = null;
+    }
+    if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+    }
+    modulatorNode = null;
+    modulatorGain = null;
+}
+
+// ===================== CARRIER GENERATION =====================
+function createCarrier() {
+    teardownCarrier();
+    if (!audioCtx) return null;
+
+    carrierGainNode = audioCtx.createGain();
+    carrierGainNode.gain.value = 1;
+
+    const type = state.carrierType;
+
+    if (type === 'sawtooth' || type === 'square') {
+        const osc = audioCtx.createOscillator();
+        osc.type = type;
+        osc.frequency.value = state.carrierFreq;
+        osc.connect(carrierGainNode);
+        osc.start();
+        carrierNode = osc;
+    } else if (type === 'pulse') {
+        // Pulse wave using two sawtooth waves
+        createPulseCarrier();
+    } else if (type === 'whitenoise') {
+        createNoiseCarrier('white');
+    } else if (type === 'pinknoise') {
+        createNoiseCarrier('pink');
+    } else if (type === 'chord') {
+        createChordCarrier();
+    } else if (type === 'external' && carAudioBuffer) {
+        carSourceNode = audioCtx.createBufferSource();
+        carSourceNode.buffer = carAudioBuffer;
+        carSourceNode.loop = true;
+        carSourceNode.connect(carrierGainNode);
+        carSourceNode.start();
+        carrierNode = carSourceNode;
+    }
+
+    return carrierGainNode;
+}
+
+function createPulseCarrier() {
+    // Pulse wave via wavetable with adjustable duty cycle
+    const bufferSize = 4096;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    const pw = state.pulseWidth;
+    for (let i = 0; i < bufferSize; i++) {
+        const phase = i / bufferSize;
+        data[i] = phase < pw ? 1 : -1;
+    }
+
+    // Use periodic wave approach with oscillator
+    const real = new Float32Array(64);
+    const imag = new Float32Array(64);
+    real[0] = 0;
+    imag[0] = 0;
+    for (let n = 1; n < 64; n++) {
+        // Pulse wave Fourier series: (2/(n*pi)) * sin(n*pi*pw)
+        real[n] = 0;
+        imag[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * state.pulseWidth);
+    }
+    const wave = audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+    const osc = audioCtx.createOscillator();
+    osc.setPeriodicWave(wave);
+    osc.frequency.value = state.carrierFreq;
+    osc.connect(carrierGainNode);
+    osc.start();
+    carrierNode = osc;
+}
+
+function createNoiseCarrier(type) {
+    const bufferSize = audioCtx.sampleRate * 2;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    if (type === 'white') {
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+    } else {
+        // Pink noise (Voss-McCartney algorithm)
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+            b6 = white * 0.115926;
+        }
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(carrierGainNode);
+    source.start();
+    noiseNode = source;
+    carrierNode = source;
+}
+
+function createChordCarrier() {
+    const intervals = CHORD_MAP[state.chordVoicing] || CHORD_MAP.major;
+    chordOscs = [];
+    const chordGain = audioCtx.createGain();
+    chordGain.gain.value = 1.0 / intervals.length;
+    chordGain.connect(carrierGainNode);
+
+    intervals.forEach(semitones => {
+        const freq = state.carrierFreq * Math.pow(2, semitones / 12);
+        // Slight detune for richness
+        for (let d = -1; d <= 1; d++) {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = freq;
+            osc.detune.value = d * 8; // +/- 8 cents
+            osc.connect(chordGain);
+            osc.start();
+            chordOscs.push(osc);
+        }
+    });
+}
+
+function teardownCarrier() {
+    if (carrierNode && carrierNode.stop) {
+        try { carrierNode.stop(); } catch(e) {}
+    }
+    if (noiseNode) {
+        try { noiseNode.stop(); } catch(e) {}
+        noiseNode = null;
+    }
+    chordOscs.forEach(o => { try { o.stop(); } catch(e) {} });
+    chordOscs = [];
+    if (carSourceNode) {
+        try { carSourceNode.stop(); } catch(e) {}
+        carSourceNode = null;
+    }
+    carrierNode = null;
+    carrierGainNode = null;
+}
+
+// ===================== VOCODER BUILD =====================
+function buildVocoder() {
+    teardownVocoder();
+    if (!audioCtx || !modulatorNode) return;
+
+    const carrierOutput = createCarrier();
+    if (!carrierOutput) return;
+
+    const freqs = computeBandFreqs(state.numBands);
+    analysisBands = [];
+    envelopeLevels = new Float32Array(state.numBands);
+
+    for (let i = 0; i < state.numBands; i++) {
+        const freq = freqs[i];
+
+        // Analysis bandpass filter (modulator)
+        const analysisBP = audioCtx.createBiquadFilter();
+        analysisBP.type = 'bandpass';
+        analysisBP.frequency.value = freq;
+        analysisBP.Q.value = state.qFactor;
+
+        // Carrier bandpass filter
+        const carrierBP = audioCtx.createBiquadFilter();
+        carrierBP.type = 'bandpass';
+        carrierBP.frequency.value = freq;
+        carrierBP.Q.value = state.qFactor;
+
+        // VCA (gain node controlled by envelope)
+        const vca = audioCtx.createGain();
+        vca.gain.value = 0;
+
+        // Connect modulator -> analysis BP
+        modulatorGain.connect(analysisBP);
+
+        // Connect carrier -> carrier BP -> VCA -> output
+        carrierOutput.connect(carrierBP);
+        carrierBP.connect(vca);
+        vca.connect(vocOutGain);
+
+        analysisBands.push({
+            analysisBP,
+            carrierBP,
+            vca,
+            freq,
+            envelope: 0,
+        });
+    }
+
+    // Envelope follower using ScriptProcessor (worklet would be better but single file)
+    const bufSize = 256;
+    envelopeProcessor = audioCtx.createScriptProcessor(bufSize, state.numBands > 1 ? 1 : 1, 1);
+
+    // We need per-band analysis. Use individual analysers for envelope following.
+    // More efficient: single script processor that reads from all analysis BPs
+    // But ScriptProcessor only has one input. So we use a different approach:
+    // We merge all analysis BPs into a channel merger, but that limits channels.
+    // Instead, use individual AnalyserNodes to read levels in the animation frame.
+
+    analysisBands.forEach((band, i) => {
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0;
+        band.analysisBP.connect(analyser);
+        band.analyser = analyser;
+        band.analyserData = new Float32Array(analyser.fftSize);
+    });
+
+    buildMeters();
+}
+
+function teardownVocoder() {
+    analysisBands.forEach(band => {
+        try { band.analysisBP.disconnect(); } catch(e) {}
+        try { band.carrierBP.disconnect(); } catch(e) {}
+        try { band.vca.disconnect(); } catch(e) {}
+        if (band.analyser) try { band.analyser.disconnect(); } catch(e) {}
+    });
+    analysisBands = [];
+    if (envelopeProcessor) {
+        try { envelopeProcessor.disconnect(); } catch(e) {}
+        envelopeProcessor = null;
+    }
+}
+
+function rebuildVocoder() {
+    teardownVocoder();
+    teardownCarrier();
+    buildVocoder();
+}
+
+// ===================== ENVELOPE FOLLOWING (in animation loop) =====================
+function updateEnvelopes() {
+    if (!state.running) return;
+
+    const attackCoeff = Math.exp(-1 / (audioCtx.sampleRate * state.attackMs / 1000));
+    const releaseCoeff = Math.exp(-1 / (audioCtx.sampleRate * state.releaseMs / 1000));
+
+    // Since we update ~60fps, we need to adjust coefficients for the frame interval
+    // Approximate: use block-based smoothing
+    const frameMs = 16.67; // ~60fps
+    const attackSmooth = 1 - Math.exp(-frameMs / state.attackMs);
+    const releaseSmooth = 1 - Math.exp(-frameMs / state.releaseMs);
+
+    analysisBands.forEach((band, i) => {
+        if (!band.analyser) return;
+
+        // Get time-domain data and compute RMS
+        band.analyser.getFloatTimeDomainData(band.analyserData);
+        let sum = 0;
+        for (let j = 0; j < band.analyserData.length; j++) {
+            sum += band.analyserData[j] * band.analyserData[j];
+        }
+        const rms = Math.sqrt(sum / band.analyserData.length);
+
+        // Envelope following
+        const target = rms;
+        if (target > band.envelope) {
+            band.envelope += (target - band.envelope) * attackSmooth;
+        } else {
+            band.envelope += (target - band.envelope) * releaseSmooth;
+        }
+
+        // Apply to VCA - scale up for audibility
+        const gain = Math.min(band.envelope * 8, 2);
+        band.vca.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.005);
+
+        envelopeLevels[i] = band.envelope;
+    });
+}
+
+// ===================== RECORDING =====================
+function startRecording() {
+    if (!audioCtx || !masterGain) return;
+
+    const dest = audioCtx.createMediaStreamDestination();
+    masterGain.connect(dest);
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus' });
+    mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+        document.getElementById('btnPlayback').style.opacity = '1';
+    };
+    mediaRecorder.start();
+    state.recording = true;
+    document.getElementById('btnRecord').classList.add('recording');
+    document.getElementById('btnRecord').textContent = 'Stop Rec';
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    state.recording = false;
+    document.getElementById('btnRecord').classList.remove('recording');
+    document.getElementById('btnRecord').textContent = 'Record';
+}
+
+function playRecording() {
+    if (!recordedBlob) return;
+    if (playbackAudio) {
+        playbackAudio.pause();
+        playbackAudio = null;
+        document.getElementById('btnPlayback').classList.remove('active');
+        return;
+    }
+    const url = URL.createObjectURL(recordedBlob);
+    playbackAudio = new Audio(url);
+    playbackAudio.play();
+    document.getElementById('btnPlayback').classList.add('active');
+    playbackAudio.onended = () => {
+        playbackAudio = null;
+        document.getElementById('btnPlayback').classList.remove('active');
+    };
+}
+
+// ===================== VISUALISATION =====================
+function startAnimation() {
+    const modCanvas = document.getElementById('canvasModulator');
+    const outCanvas = document.getElementById('canvasOutput');
+    const wavCanvas = document.getElementById('canvasWaveform');
+
+    function resizeCanvas(c) {
+        const r = c.parentElement.getBoundingClientRect();
+        if (c.width !== Math.floor(r.width) || c.height !== Math.floor(r.height)) {
+            c.width = Math.floor(r.width);
+            c.height = Math.floor(r.height);
+        }
+    }
+
+    const modCtx = modCanvas.getContext('2d');
+    const outCtx = outCanvas.getContext('2d');
+    const wavCtx = wavCanvas.getContext('2d');
+
+    const modData = new Uint8Array(1024);
+    const outData = new Uint8Array(1024);
+    const wavData = new Float32Array(2048);
+
+    function draw() {
+        if (!state.running) return;
+        animFrame = requestAnimationFrame(draw);
+
+        // Update envelopes
+        updateEnvelopes();
+
+        // Update meter bars
+        const fills = document.querySelectorAll('.meter-fill');
+        for (let i = 0; i < fills.length && i < state.numBands; i++) {
+            const level = Math.min(envelopeLevels[i] * 500, 100);
+            fills[i].style.height = level + '%';
+        }
+
+        // Resize canvases
+        resizeCanvas(modCanvas);
+        resizeCanvas(outCanvas);
+        resizeCanvas(wavCanvas);
+
+        // Modulator spectrum
+        if (modulatorAnalyser) {
+            modulatorAnalyser.getByteFrequencyData(modData);
+            drawSpectrum(modCtx, modData, modCanvas.width, modCanvas.height, 'rgba(212,135,14,0.6)', 'rgba(212,135,14,0.15)');
+        }
+
+        // Output spectrum
+        if (outputAnalyser) {
+            outputAnalyser.getByteFrequencyData(outData);
+            drawSpectrum(outCtx, outData, outCanvas.width, outCanvas.height, 'rgba(232,168,73,0.7)', 'rgba(232,168,73,0.15)');
+        }
+
+        // Waveform
+        if (waveformAnalyser) {
+            waveformAnalyser.getFloatTimeDomainData(wavData);
+            drawWaveform(wavCtx, wavData, wavCanvas.width, wavCanvas.height);
+        }
+    }
+
+    draw();
+}
+
+function drawSpectrum(ctx, data, w, h, strokeColor, fillColor) {
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(212,135,14,0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+        const y = (h / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+    }
+
+    // Spectrum
+    const barCount = Math.min(data.length, w);
+    const barWidth = w / barCount;
+
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < barCount; i++) {
+        // Log frequency mapping
+        const logI = Math.pow(i / barCount, 0.7) * data.length;
+        const idx = Math.min(Math.floor(logI), data.length - 1);
+        const val = data[idx] / 255;
+        const y = h - val * h;
+        ctx.lineTo(i * barWidth, y);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.beginPath();
+    for (let i = 0; i < barCount; i++) {
+        const logI = Math.pow(i / barCount, 0.7) * data.length;
+        const idx = Math.min(Math.floor(logI), data.length - 1);
+        const val = data[idx] / 255;
+        const y = h - val * h;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(i * barWidth, y);
+    }
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+function drawWaveform(ctx, data, w, h) {
+    ctx.clearRect(0, 0, w, h);
+
+    // Center line
+    ctx.strokeStyle = 'rgba(212,135,14,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+
+    // Waveform
+    ctx.beginPath();
+    const step = data.length / w;
+    for (let i = 0; i < w; i++) {
+        const idx = Math.floor(i * step);
+        const val = data[idx];
+        const y = (1 - val) * h / 2;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(i, y);
+    }
+    ctx.strokeStyle = 'rgba(232,168,73,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Glow effect
+    ctx.beginPath();
+    for (let i = 0; i < w; i++) {
+        const idx = Math.floor(i * step);
+        const val = data[idx];
+        const y = (1 - val) * h / 2;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(i, y);
+    }
+    ctx.strokeStyle = 'rgba(212,135,14,0.15)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+}
+
+// ===================== EVENT HANDLERS =====================
+function initControls() {
+    // Start/Stop
+    document.getElementById('btnStart').onclick = () => {
+        if (state.running) stopAudio();
+        else startAudio();
+    };
+
+    // Record
+    document.getElementById('btnRecord').onclick = () => {
+        if (!state.running) return;
+        if (state.recording) stopRecording();
+        else startRecording();
+    };
+
+    // Playback
+    document.getElementById('btnPlayback').onclick = playRecording;
+    document.getElementById('btnPlayback').style.opacity = '0.4';
+
+    // Band count buttons
+    document.querySelectorAll('#bandBtns .btn').forEach(btn => {
+        btn.onclick = () => {
+            const n = parseInt(btn.dataset.bands);
+            state.numBands = n;
+            document.getElementById('valBands').textContent = n;
+            setActiveBtn('bandBtns', 'bands', String(n));
+            if (state.running) rebuildVocoder();
+            else buildMeters();
+        };
+    });
+
+    // Spacing buttons
+    document.querySelectorAll('#spacingBtns .btn').forEach(btn => {
+        btn.onclick = () => {
+            state.spacing = btn.dataset.spacing;
+            document.getElementById('valSpacing').textContent = btn.dataset.spacing === 'log' ? 'Log' : 'Linear';
+            setActiveBtn('spacingBtns', 'spacing', btn.dataset.spacing);
+            if (state.running) rebuildVocoder();
+            else buildMeters();
+        };
+    });
+
+    // Carrier type buttons
+    document.querySelectorAll('#carrierBtns .btn').forEach(btn => {
+        btn.onclick = () => {
+            state.carrierType = btn.dataset.carrier;
+            setActiveBtn('carrierBtns', 'carrier', btn.dataset.carrier);
+            if (state.running) rebuildVocoder();
+        };
+    });
+
+    // Chord voicing buttons
+    document.querySelectorAll('#chordBtns .btn').forEach(btn => {
+        btn.onclick = () => {
+            state.chordVoicing = btn.dataset.chord;
+            document.getElementById('valChord').textContent = btn.textContent;
+            setActiveBtn('chordBtns', 'chord', btn.dataset.chord);
+            if (state.running && state.carrierType === 'chord') rebuildVocoder();
+        };
+    });
+
+    // Sliders
+    const sliderHandler = (id, stateKey, valId, formatter, rebuilds) => {
+        const slider = document.getElementById(id);
+        slider.oninput = () => {
+            const v = parseFloat(slider.value);
+            state[stateKey] = v;
+            document.getElementById(valId).textContent = formatter(v);
+            if (rebuilds && state.running) {
+                // Some params can update live
+                if (stateKey === 'gain' && masterGain) {
+                    masterGain.gain.setTargetAtTime(Math.pow(10, v / 20), audioCtx.currentTime, 0.01);
+                } else if (stateKey === 'mix') {
+                    state.mix = v / 100;
+                    if (wetGain) wetGain.gain.setTargetAtTime(state.mix, audioCtx.currentTime, 0.01);
+                    if (dryGain) dryGain.gain.setTargetAtTime(1 - state.mix, audioCtx.currentTime, 0.01);
+                } else if (stateKey === 'carrierFreq') {
+                    updateCarrierFrequency();
+                } else if (stateKey === 'qFactor') {
+                    updateFilterQ();
+                }
+            }
+        };
+    };
+
+    sliderHandler('sliderAttack', 'attackMs', 'valAttack', v => v + ' ms', false);
+    sliderHandler('sliderRelease', 'releaseMs', 'valRelease', v => v + ' ms', false);
+    sliderHandler('sliderFreq', 'carrierFreq', 'valFreq', v => v + ' Hz', true);
+    sliderHandler('sliderPW', 'pulseWidth', 'valPW', v => v + '%', false);
+    document.getElementById('sliderPW').oninput = function() {
+        const v = parseFloat(this.value);
+        state.pulseWidth = v / 100;
+        document.getElementById('valPW').textContent = v + '%';
+        if (state.running && state.carrierType === 'pulse') rebuildVocoder();
+    };
+
+    sliderHandler('sliderMix', 'mix', 'valMix', v => v + '%', true);
+    sliderHandler('sliderGain', 'gain', 'valGain', v => v + ' dB', true);
+    sliderHandler('sliderQ', 'qFactor', 'valQ', v => parseFloat(v).toFixed(1), true);
+
+    // File inputs
+    document.getElementById('modFileInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        document.getElementById('modFileName').textContent = file.name;
+        const arrayBuf = await file.arrayBuffer();
+        const tempCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        modAudioBuffer = await tempCtx.decodeAudioData(arrayBuf);
+        if (!audioCtx) tempCtx.close();
+        setModulatorSource('file');
+    };
+
+    document.getElementById('carFileInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        document.getElementById('carFileName').textContent = file.name;
+        const arrayBuf = await file.arrayBuffer();
+        const tempCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        carAudioBuffer = await tempCtx.decodeAudioData(arrayBuf);
+        if (!audioCtx) tempCtx.close();
+        state.carrierType = 'external';
+        setActiveBtn('carrierBtns', 'carrier', ''); // deselect all
+        if (state.running) rebuildVocoder();
+    };
+}
+
+function updateCarrierFrequency() {
+    if (!audioCtx) return;
+    if (state.carrierType === 'chord') {
+        // Need to rebuild for chord
+        rebuildVocoder();
+        return;
+    }
+    if (carrierNode && carrierNode.frequency) {
+        carrierNode.frequency.setTargetAtTime(state.carrierFreq, audioCtx.currentTime, 0.01);
+    }
+}
+
+function updateFilterQ() {
+    analysisBands.forEach(band => {
+        band.analysisBP.Q.setTargetAtTime(state.qFactor, audioCtx.currentTime, 0.01);
+        band.carrierBP.Q.setTargetAtTime(state.qFactor, audioCtx.currentTime, 0.01);
+    });
+}
+
+window.setModulatorSource = function(src) {
+    state.modulatorSource = src;
+    document.getElementById('srcMic').classList.toggle('active', src === 'mic');
+    if (state.running) {
+        // Restart with new source
+        const wasRunning = true;
+        stopAudio();
+        startAudio();
+    }
+};
+
+// ===================== INIT =====================
+function init() {
+    initPresets();
+    initControls();
+    buildMeters();
+
+    // Apply first preset visually (but don't start audio)
+    applyPreset(0);
+    // Deselect the preset highlight since we haven't started
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+}
+
+init();
+</script>
+</body>
+</html>
