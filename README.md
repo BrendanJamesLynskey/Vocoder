@@ -2,6 +2,10 @@
 
 A single-file interactive channel vocoder built with the Web Audio API.
 
+### [Launch App](https://brendanjameslynskey.github.io/Vocoder/)
+
+---
+
 ## Overview
 
 A channel vocoder analyses a **modulator** signal (typically voice) by splitting it into frequency bands, extracting the amplitude envelope of each band, and using those envelopes to shape a **carrier** signal (typically a harmonically rich waveform like a sawtooth). The result is the carrier "speaking" with the spectral shape of the modulator — the classic robot voice effect.
@@ -65,18 +69,9 @@ A channel vocoder analyses a **modulator** signal (typically voice) by splitting
 | Output Gain | -24 to +12 dB | Master output level |
 | Q Factor | 1–20 | Bandpass filter resonance |
 
-## Usage
-
-1. Open `index.html` in a modern browser (Chrome, Firefox, Edge)
-2. Click **Start** to initialise the audio engine (grants microphone access)
-3. Select a preset or configure parameters manually
-4. Speak into your microphone — the vocoder processes your voice in real-time
-5. Experiment with different carrier types and envelope settings
-6. Use **Record** to capture the output, **Play Rec** to listen back
-
 ## Technical Details
 
-- Single HTML file, no build step or dependencies
+- Single HTML file
 - Uses Web Audio API: `BiquadFilterNode` (bandpass filters), `GainNode` (VCAs), `AnalyserNode` (visualisation and envelope detection)
 - Envelope following computed per-frame using RMS analysis of each band's time-domain data
 - Pink noise generated using the Voss-McCartney algorithm
